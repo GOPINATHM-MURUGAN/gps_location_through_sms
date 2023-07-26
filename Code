@@ -1,0 +1,108 @@
+#include <SoftwareSerial.h>
+#include <TinyGPS++.h>
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
+#include <HTTPClient.h>
+
+// Define the GSM module pins
+#define GSM_RX 16
+#define GSM_TX 17
+
+// Define the GPS module pins
+#define GPS_RX 34
+#define GPS_TX 35
+
+// Define the BME280 module pins
+#define BME_SDA 21
+#define BME_SCL 22
+
+// Define the phone number to send SMS to
+#define PHONE_NUMBER "+91 XXXXXXXXXX"
+
+// Define the GSM module baud rate
+#define GSM_BAUD 9600
+
+// Define the GPS module baud rate
+#define GPS_BAUD 9600
+
+// Define the BME280 module address
+#define BME_ADDRESS 0x76
+
+// Define the GPS object
+TinyGPSPlus gps;
+
+// Define the GSM object
+SoftwareSerial gsm(GSM_RX, GSM_TX);
+
+
+// Define the web server URL
+const char* SERVER_URL = "http://example.com/upload.php";
+
+// Define the GPS location and temperature variables
+float latitude, longitude, temperature;
+
+void setup() {
+  // Start the serial communication
+  Serial.begin(115200);
+
+  // Initialize the GSM module
+  gsm.begin(GSM_BAUD);
+  delay(1000);
+
+  // Initialize the GPS module
+  Serial2.begin(GPS_BAUD, SERIAL_8N1, GPS_RX, GPS_TX);
+
+  // Initialize the BME280 module
+  Wire.begin(BME_SDA, BME_SCL);
+  bme.begin(BME_ADDRESS);
+
+  // Wait for GPS signal
+  Serial.println("Waiting for GPS signal...");
+  while (!gps.location.isValid()) {
+    while (Serial2.available() > 0) {
+      gps.encode(Serial2.read());
+    }
+  }
+  Serial.println("GPS signal found!");
+
+  // Get the initial GPS location and temperature
+  latitude = gps.location.lat();
+  longitude = gps.location.lng();
+  temperature = bme.readTemperature();
+
+  // Send the initial GPS location and temperature via SMS
+  String message = "GPS Location: " + String(latitude, 6) + ", " + String(longitude, 6) + "\n" + "Temperature: " + String(temperature) + "C";
+  sendSMS(PHONE_NUMBER, message);
+}
+
+void loop() {
+  // Update the GPS object
+  while (Serial2.available() > 0) {
+    gps.encode(Serial2.read());
+  }
+
+  // Check if a new GPS location is available
+  if (gps.location.isValid()) {
+    // Get the GPS location and temperature
+    latitude = gps.location.lat();
+    longitude = gps.location.lng();
+    temperature = bme.readTemperature();
+
+    // Send the GPS location and temperature via SMS
+    String message = "GPS Location: " + String(latitude, 6) + ", " + String(longitude, 6) + "\n" + "Temperature: " + String(temperature) + "C";
+    sendSMS(PHONE_NUMBER, message);
+
+    // Upload the GPS location and temperature to the web server
+    uploadData(latitude, longitude, temperature);
+  }
+
+  // Wait for 1 minute
+  delay(60000);
+}
+
+void sendSMS(String phoneNumber, String message) {
+  // Send the SMS message
+  gsm.println("AT+CMGF=1");
+  delay(100);
+ 
